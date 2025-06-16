@@ -1,0 +1,6 @@
+@FUNewSystem.BE_HostAddress = http://localhost:5005
+
+GET {{FUNewSystem.BE_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
