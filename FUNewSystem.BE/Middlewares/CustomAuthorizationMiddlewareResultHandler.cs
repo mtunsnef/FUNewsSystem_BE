@@ -10,7 +10,8 @@ namespace FUNewSystem.BE.Middlewares
         private readonly AuthorizationMiddlewareResultHandler _defaultHandler = new();
         private readonly ILogger<CustomAuthorizationMiddlewareResultHandler> _logger;
 
-        public CustomAuthorizationMiddlewareResultHandler(ILogger<CustomAuthorizationMiddlewareResultHandler> logger)
+        public CustomAuthorizationMiddlewareResultHandler(
+            ILogger<CustomAuthorizationMiddlewareResultHandler> logger)
         {
             _logger = logger;
         }
@@ -21,48 +22,44 @@ namespace FUNewSystem.BE.Middlewares
             AuthorizationPolicy policy,
             PolicyAuthorizationResult authorizeResult)
         {
+            if (authorizeResult.Succeeded)
+            {
+                await _defaultHandler.HandleAsync(next, context, policy, authorizeResult);
+                return;
+            }
+
             var request = context.Request;
             var response = context.Response;
 
             response.ContentType = "application/json";
 
-            var statusCode = response.StatusCode;
+            var statusCode = authorizeResult.Forbidden
+                ? StatusCodes.Status403Forbidden 
+                : StatusCodes.Status401Unauthorized;
 
-            _logger.LogInformation($"Message from AuthorizationMiddlewareResultHandler with StatusCode = {statusCode}");
+            response.StatusCode = statusCode;
 
-            // If the authorization was forbidden and the resource had a specific requirement,
-            // provide a custom 404 response.
-            if (authorizeResult.Forbidden)
+            var message = statusCode == StatusCodes.Status404NotFound
+                ? "Not Found"
+                : "Unauthorized";
+
+            _logger.LogWarning($"Authorization failed with status {statusCode} for path {request.Path}");
+
+            var error = new ErrorResponseDto
             {
-                // Return a 404 to make it appear as if the resource doesn't exist.
-                statusCode = StatusCodes.Status404NotFound;
-            }
+                StatusCode = statusCode,
+                Message = message,
+                Path = request.Path.Value,
+                Timestamp = DateTime.UtcNow
+            };
 
-            if (statusCode == StatusCodes.Status200OK)
+            var result = JsonSerializer.Serialize(error, new JsonSerializerOptions
             {
-                // Fall back to the default implementation.
-                await _defaultHandler.HandleAsync(next, context, policy, authorizeResult);
-            }
-            else
-            {
-                var serializeOptions = new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                };
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
 
-                var message = statusCode == StatusCodes.Status404NotFound ? "Not Found" : "Unauthorized";
-
-                var result = JsonSerializer.Serialize(new ErrorResponseDto
-                {
-                    StatusCode = statusCode,
-                    Message = message,
-                    Path = request.Path.Value,
-                    Timestamp = DateTime.UtcNow
-                }, serializeOptions);
-
-                // await Results.Content(result, "application/json").ExecuteAsync(context);
-                await response.WriteAsync(result);
-            }
+            await response.WriteAsync(result);
         }
     }
+
 }
