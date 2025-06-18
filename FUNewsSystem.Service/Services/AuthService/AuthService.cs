@@ -123,20 +123,22 @@ namespace FUNewsSystem.Service.Services.AuthService
             };
         }
 
-        public async Task<TokenPayloadDto> RefreshTokenAsync(string token)
+        public async Task<TokenPayloadDto> RefreshTokenAsync(string refreshToken)
         {
-            var principal = ValidateToken(
-                token, _configService.GetString("Jwt:SecretKey"));
+            var principal = ValidateRefreshToken(refreshToken);
 
-            var jti = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value ?? throw new UnauthorizedException("Invalid jti");
+            var jti = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                      ?? throw new UnauthorizedException("Invalid jti");
 
-            if (await _blacklistTokenService.IsBlacklistedAsync(jti)) throw new UnauthorizedException("Token already used");
+            if (await _blacklistTokenService.IsBlacklistedAsync(jti))
+                throw new UnauthorizedException("Refresh token already used");
 
-            var expiry = GetTokenExpiry(token);
+            var expiry = GetTokenExpiry(refreshToken);
             await _blacklistTokenService.AddAsync(jti, expiry);
 
             var accId = principal.FindFirst("AccountId")!.Value;
-            var account = await _systemAccountService.GetUserByIdAsync(accId) ?? throw new UnauthorizedException("User not found");
+            var account = await _systemAccountService.GetUserByIdAsync(accId)
+                           ?? throw new UnauthorizedException("User not found");
 
             var newAccess = GenerateToken(account, AuthToken.AccessToken);
             var newRefresh = GenerateToken(account, AuthToken.RefreshToken);
@@ -148,6 +150,7 @@ namespace FUNewsSystem.Service.Services.AuthService
                 ExpiresIn = _configService.GetInt("Jwt:Lifetime:AccessToken")
             };
         }
+
 
 
         private string GenerateToken(SystemAccount acc, AuthToken type)
@@ -168,7 +171,8 @@ namespace FUNewsSystem.Service.Services.AuthService
                     new Claim(JwtRegisteredClaimNames.Sub, _configService.GetString("Jwt:Subject")),
                     new Claim("AccountId", acc.AccountId.ToString()),
                     new Claim("Email",     acc.AccountEmail ?? ""),
-                    new Claim(ClaimTypes.Role, acc.GetRoleConst() ?? "")
+                    new Claim(ClaimTypes.Role, acc.GetRoleConst() ?? ""),
+                    new Claim("token_type", type == AuthToken.AccessToken ? "access" : "refresh")
                 }),
                 Expires = DateTime.UtcNow.AddSeconds(life),
                 Issuer = _configService.GetString("Jwt:Issuer"),
@@ -199,6 +203,19 @@ namespace FUNewsSystem.Service.Services.AuthService
                 IsNewAccount = false,
                 AccessToken = token
             };
+        }
+        private ClaimsPrincipal ValidateRefreshToken(string token)
+        {
+            var principal = ValidateToken(
+                token,
+                _configService.GetString("Jwt:SecretKey")
+            );
+
+            var type = principal.FindFirst("token_type")?.Value;
+            if (type != "refresh")
+                throw new UnauthorizedException("Wrong token type");
+
+            return principal;
         }
 
         public async Task<ApiResponseDto<string>> CompleteRegisterAsync(CompleteExternalRegisterDto dto)

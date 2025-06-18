@@ -39,9 +39,12 @@ namespace FUNewSystem.BE.Middlewares
 
             response.StatusCode = statusCode;
 
-            var message = statusCode == StatusCodes.Status404NotFound
-                ? "Not Found"
-                : "Unauthorized";
+            string message = statusCode switch
+            {
+                StatusCodes.Status403Forbidden => "You don’t have permission",
+                StatusCodes.Status401Unauthorized => "Unauthorized",
+                _ => "Error"
+            };
 
             _logger.LogWarning($"Authorization failed with status {statusCode} for path {request.Path}");
 

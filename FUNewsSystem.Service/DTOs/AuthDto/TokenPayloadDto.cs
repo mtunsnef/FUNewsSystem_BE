@@ -11,8 +11,6 @@ namespace FUNewsSystem.Service.DTOs.AuthDto
     {
         public int ExpiresIn { get; set; } = 3600;
         public string AccessToken { get; set; } = string.Empty;
-
-        [JsonIgnore]
         public string RefreshToken { get; set; } = string.Empty;
     }
 }
