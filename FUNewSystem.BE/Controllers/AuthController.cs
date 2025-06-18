@@ -8,6 +8,7 @@ using FUNewsSystem.Service.DTOs.AuthDto.ExternalDto;
 using FUNewsSystem.Service.DTOs.ResponseDto;
 using FUNewsSystem.Service.DTOs.SystemAccountDto;
 using FUNewsSystem.Service.Services.AuthService;
+using FUNewsSystem.Service.Services.ConfigService;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -25,22 +26,25 @@ namespace FUNewSystem.BE.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        public AuthController(IAuthService authService)
+        private readonly IConfigService _configService;
+        public AuthController(IAuthService authService, IConfigService configService)
         {
             _authService = authService;
+            _configService = configService;
         }
 
         [HttpPost("token")]
         public async Task<ActionResult> Login([FromBody] UserCredentialDto dto)
         {
             var payload = await _authService.Login(dto);
+            var refreshTokenLifetimeSeconds = _configService.GetInt("Jwt:Lifetime:RefreshToken");
 
             var cookieOptions = new CookieOptions
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7)
+                SameSite = SameSiteMode.None,
+                Expires = DateTime.UtcNow.AddSeconds(refreshTokenLifetimeSeconds)
             };
 
             Response.Cookies.Append("refresh_token", payload.AccessToken.RefreshToken, cookieOptions);
@@ -48,7 +52,7 @@ namespace FUNewSystem.BE.Controllers
             return Ok(new
             {
                 accessToken = payload.AccessToken.AccessToken,
-                expiresIn = payload.AccessToken.ExpiresIn,
+                refreshToken = payload.AccessToken.RefreshToken,
                 authenticated = payload.Authenticated
             });
         }
@@ -65,16 +69,27 @@ namespace FUNewSystem.BE.Controllers
         public async Task<ActionResult<TokenPayloadDto>> RefreshToken()
         {
             var refreshToken = Request.Cookies["refresh_token"];
-            if (string.IsNullOrEmpty(refreshToken))
-                return Unauthorized();
 
-            var payload = await _authService.RefreshTokenAsync(refreshToken);
+            var payload = await _authService.RefreshTokenAsync(refreshToken); 
+            var refreshTokenLifetimeSeconds = _configService.GetInt("Jwt:Lifetime:RefreshToken");
+
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Expires = DateTime.UtcNow.AddSeconds(refreshTokenLifetimeSeconds)
+            };
+            Response.Cookies.Append("refresh_token", payload.RefreshToken, cookieOptions);
+
             return Ok(new
             {
                 accessToken = payload.AccessToken,
+                refreshToken = payload.RefreshToken,
                 expiresIn = payload.ExpiresIn
             });
         }
+
 
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(LogoutRequestDto dto)
@@ -87,7 +102,7 @@ namespace FUNewSystem.BE.Controllers
         [HttpGet("external-login")]
         public IActionResult ExternalLogin([FromQuery] string provider, [FromQuery] string returnUrl)
         {
-            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl, provider }); // 👈 Add provider
+            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl, provider });
             var props = new AuthenticationProperties { RedirectUri = redirectUrl };
 
             return Challenge(props, provider switch
@@ -101,7 +116,6 @@ namespace FUNewSystem.BE.Controllers
         [HttpGet("external-login-callback")]
         public async Task<IActionResult> ExternalLoginCallback([FromQuery] string returnUrl, [FromQuery] string provider)
         {
-            // dùng provider để lấy scheme tương ứng
             var scheme = provider.ToLower() switch
             {
                 AuthProviders.Google => AuthSchemes.Google,
