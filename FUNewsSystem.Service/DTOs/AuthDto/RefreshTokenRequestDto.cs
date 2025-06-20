@@ -8,6 +8,7 @@ namespace FUNewsSystem.Service.DTOs.AuthDto
 {
     public class RefreshTokenRequestDto
     {
-        public string token { get; set; }
+        public required string AccessToken { get; set; }
+        //public required string RefreshToken { get; set; }
     }
 }

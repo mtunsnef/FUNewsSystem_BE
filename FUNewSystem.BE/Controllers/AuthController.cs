@@ -37,18 +37,6 @@ namespace FUNewSystem.BE.Controllers
         public async Task<ActionResult> Login([FromBody] UserCredentialDto dto)
         {
             var payload = await _authService.Login(dto);
-            var refreshTokenLifetimeSeconds = _configService.GetInt("Jwt:Lifetime:RefreshToken");
-
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.None,
-                Expires = DateTime.UtcNow.AddSeconds(refreshTokenLifetimeSeconds)
-            };
-
-            Response.Cookies.Append("refresh_token", payload.AccessToken.RefreshToken, cookieOptions);
-
             return Ok(new
             {
                 accessToken = payload.AccessToken.AccessToken,
@@ -56,7 +44,6 @@ namespace FUNewSystem.BE.Controllers
                 authenticated = payload.Authenticated
             });
         }
-
 
         [HttpGet("myinfo")]
         [Authorize]
@@ -66,21 +53,9 @@ namespace FUNewSystem.BE.Controllers
         }
 
         [HttpPost("refresh")]
-        public async Task<ActionResult<TokenPayloadDto>> RefreshToken()
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto dto)
         {
-            var refreshToken = Request.Cookies["refresh_token"];
-
-            var payload = await _authService.RefreshTokenAsync(refreshToken); 
-            var refreshTokenLifetimeSeconds = _configService.GetInt("Jwt:Lifetime:RefreshToken");
-
-            var cookieOptions = new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.None,
-                Expires = DateTime.UtcNow.AddSeconds(refreshTokenLifetimeSeconds)
-            };
-            Response.Cookies.Append("refresh_token", payload.RefreshToken, cookieOptions);
+            var payload = await _authService.RefreshTokenAsync(dto.AccessToken);
 
             return Ok(new
             {
@@ -89,7 +64,6 @@ namespace FUNewSystem.BE.Controllers
                 expiresIn = payload.ExpiresIn
             });
         }
-
 
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(LogoutRequestDto dto)
