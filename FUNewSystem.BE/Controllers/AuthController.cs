@@ -76,7 +76,7 @@ namespace FUNewSystem.BE.Controllers
         [HttpGet("external-login")]
         public IActionResult ExternalLogin([FromQuery] string provider, [FromQuery] string returnUrl)
         {
-            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl, provider });
+            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl, provider }, Request.Scheme, Request.Host.Value);
             var props = new AuthenticationProperties { RedirectUri = redirectUrl };
 
             return Challenge(props, provider switch
@@ -120,8 +120,13 @@ namespace FUNewSystem.BE.Controllers
         [HttpPost("complete-register")]
         public async Task<IActionResult> CompleteExternalRegister([FromBody] CompleteExternalRegisterDto dto)
         {
-            var result = await _authService.CompleteRegisterAsync(dto);
-            return Ok(result);
+            var payload = await _authService.CompleteRegisterAsync(dto);
+            return Ok(new
+            {
+                accessToken = payload.AccessToken.AccessToken,
+                refreshToken = payload.AccessToken.RefreshToken,
+                authenticated = payload.Authenticated
+            });
         }
 
     }
