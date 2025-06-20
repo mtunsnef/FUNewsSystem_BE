@@ -15,7 +15,7 @@ namespace FUNewsSystem.Service.Services.AuthService
     {
         Task<SystemAccount> GetMe();
         Task LogoutAsync(LogoutRequestDto request);
-        Task<TokenPayloadDto> RefreshTokenAsync(string token);
+        Task<TokenPayloadDto> RefreshTokenAsync(string currentAccessToken);
         Task<LoginPayloadDto> Login(UserCredentialDto dto);
         Task<ExternalLoginPayloadDto> HandleExternalLoginAsync(string email, string? name, string externalId);
         Task<ApiResponseDto<string>> CompleteRegisterAsync(CompleteExternalRegisterDto dto);
