@@ -230,7 +230,7 @@ namespace FUNewsSystem.Service.Services.AuthService
         }
 
 
-        public async Task<ApiResponseDto<string>> CompleteRegisterAsync(CompleteExternalRegisterDto dto)
+        public async Task<LoginPayloadDto> CompleteRegisterAsync(CompleteExternalRegisterDto dto)
         {
             var existingAccount = await _systemAccountRepository.GetAccountByEmail(dto.Email);
 
@@ -252,8 +252,16 @@ namespace FUNewsSystem.Service.Services.AuthService
 
             await _systemAccountRepository.AddAsync(account);
 
-            var token = GenerateToken(account, AuthToken.AccessToken);
-            return ApiResponseDto<string>.SuccessResponse(token);
+            var tokenPayload = GenerateTokenPayload(account);
+            var refreshKey = $"{account.AccountId}";
+            var refreshTTL = TimeSpan.FromSeconds(_configService.GetInt("Jwt:Lifetime:RefreshToken"));
+            await _tokenStoreService.SetAsync(refreshKey, tokenPayload.RefreshToken, refreshTTL);
+
+            return new LoginPayloadDto
+            {
+                AccessToken = tokenPayload,
+                Authenticated = true
+            };
         }
     }
 }
