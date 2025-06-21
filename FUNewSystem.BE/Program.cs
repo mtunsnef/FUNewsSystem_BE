@@ -9,6 +9,8 @@ using FUNewsSystem.Infrastructure.Repositories.SystemAccountRepo;
 using FUNewsSystem.Infrastructure.Repositories.TagRepo;
 using FUNewsSystem.Service.AutoMapper;
 using FUNewsSystem.Service.Services.AuthService;
+using FUNewsSystem.Service.Services.AuthService.AzureRedisTokenStoreService;
+using FUNewsSystem.Service.Services.AuthService.BlacklistTokenService;
 using FUNewsSystem.Service.Services.CategoryService;
 using FUNewsSystem.Service.Services.ConfigService;
 using FUNewsSystem.Service.Services.HttpContextService;
@@ -25,6 +27,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 
@@ -192,7 +195,6 @@ namespace FUNewSystem.BE
             builder.Services.AddScoped<INewsArticleRepository, NewsArticleRepository>();
             builder.Services.AddScoped<ITagRepository, TagRepository>();
             builder.Services.AddScoped<ISystemAccountRepository, SystemAccountRepository>();
-            builder.Services.AddScoped<IBlacklistTokenRepository, BlacklistTokenRepository>();
 
             //Service
             builder.Services.AddScoped<ICategoryService, CategoryService>();
@@ -203,10 +205,19 @@ namespace FUNewSystem.BE
             builder.Services.AddScoped<IConfigService, ConfigService>();
             builder.Services.AddScoped<IHttpContextService, HttpContextService>();
             builder.Services.AddScoped<IBlacklistTokenService, BlacklistTokenService>();
+            builder.Services.AddScoped<IRefreshTokenStoreSerivce, AzureRedisRefreshTokenStoreService>();
 
             //Config automapper
             builder.Services.AddAutoMapper(typeof(CategoryProfile));
             builder.Services.AddAutoMapper(typeof(Program));
+
+            //Add config azure redis
+            builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+            ConnectionMultiplexer.Connect(
+                builder.Configuration.GetConnectionString("Redis")!));
+            // appsettings.json
+            // "ConnectionStrings": { "Redis": "FUNewSystemBEcache.redis.cache.windows.net:6380,password=...,ssl=True,abortConnect=False" }
+
 
             var app = builder.Build();
 
@@ -219,9 +230,12 @@ namespace FUNewSystem.BE
 
             app.UseGlobalExceptionHandler();
             app.UseHttpsRedirection();
+            app.UseForwardedHeaders();
+
+            app.UseCors("AllowFrontend");
+
             app.UseAuthentication();
             app.UseAuthorization();
-            app.UseCors("AllowFrontend");
 
             app.MapControllers();
 
