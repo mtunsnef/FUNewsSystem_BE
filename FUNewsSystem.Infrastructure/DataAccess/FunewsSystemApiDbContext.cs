@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using FUNewsSystem.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-namespace FUNewsSystem.Domain.Models;
+namespace FUNewsSystem.Infrastructure.DataAccess;
 
 public partial class FunewsSystemApiDbContext : DbContext
 {

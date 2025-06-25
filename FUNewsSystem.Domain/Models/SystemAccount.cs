@@ -21,6 +21,12 @@ public partial class SystemAccount
 
     public string? PhoneNumber { get; set; }
 
+    public bool Is2FAEnabled { get; set; }
+
+    public string? TwoFactorSecretKey { get; set; }
+
+    public string? Temp2FASecretKey { get; set; }
+
     public virtual ICollection<NewsArticle> NewsArticles { get; set; } = new List<NewsArticle>();
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();

@@ -10,6 +10,7 @@ namespace FUNewsSystem.Service.DTOs.AuthDto.ExternalDto
     {
         public bool IsNewAccount { get; set; }
         public string? AccessToken { get; set; }
+        public bool Is2FAEnabled { get; set; }
     }
 
 }
