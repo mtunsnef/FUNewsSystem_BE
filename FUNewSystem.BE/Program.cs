@@ -2,6 +2,7 @@
 using FluentValidation.AspNetCore;
 using FUNewsSystem.Domain.Consts;
 using FUNewsSystem.Domain.Models;
+using FUNewsSystem.Infrastructure.DataAccess;
 using FUNewsSystem.Infrastructure.Repositories.CategoryRepo;
 using FUNewsSystem.Infrastructure.Repositories.InvalidatedTokenRepo;
 using FUNewsSystem.Infrastructure.Repositories.NewsArticleRepo;
@@ -11,6 +12,7 @@ using FUNewsSystem.Service.AutoMapper;
 using FUNewsSystem.Service.Services.AuthService;
 using FUNewsSystem.Service.Services.AuthService.AzureRedisTokenStoreService;
 using FUNewsSystem.Service.Services.AuthService.BlacklistTokenService;
+using FUNewsSystem.Service.Services.AuthService.TwoFactorAuthService;
 using FUNewsSystem.Service.Services.CategoryService;
 using FUNewsSystem.Service.Services.ConfigService;
 using FUNewsSystem.Service.Services.HttpContextService;
@@ -206,6 +208,7 @@ namespace FUNewSystem.BE
             builder.Services.AddScoped<IHttpContextService, HttpContextService>();
             builder.Services.AddScoped<IBlacklistTokenService, BlacklistTokenService>();
             builder.Services.AddScoped<IRefreshTokenStoreSerivce, AzureRedisRefreshTokenStoreService>();
+            builder.Services.AddScoped<ITwoFactorAuthService, TwoFactorAuthService>();
 
             //Config automapper
             builder.Services.AddAutoMapper(typeof(CategoryProfile));

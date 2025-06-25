@@ -5,10 +5,13 @@ using FUNewsSystem.Domain.Models;
 using FUNewsSystem.Infrastructure.Repositories.SystemAccountRepo;
 using FUNewsSystem.Service.DTOs.AuthDto;
 using FUNewsSystem.Service.DTOs.AuthDto.ExternalDto;
+using FUNewsSystem.Service.DTOs.AuthDto.TwoFaDto;
 using FUNewsSystem.Service.DTOs.ResponseDto;
 using FUNewsSystem.Service.DTOs.SystemAccountDto;
 using FUNewsSystem.Service.Services.AuthService;
+using FUNewsSystem.Service.Services.AuthService.TwoFactorAuthService;
 using FUNewsSystem.Service.Services.ConfigService;
+using FUNewsSystem.Service.Services.HttpContextService;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -27,10 +30,15 @@ namespace FUNewSystem.BE.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IConfigService _configService;
-        public AuthController(IAuthService authService, IConfigService configService)
+        private readonly ITwoFactorAuthService _twoFactorAuthService;
+        private readonly IHttpContextService _httpContextService;
+
+        public AuthController(IHttpContextService httpContextService,IAuthService authService, IConfigService configService, ITwoFactorAuthService twoFactorAuthService)
         {
             _authService = authService;
             _configService = configService;
+            _twoFactorAuthService = twoFactorAuthService;
+            _httpContextService = httpContextService;
         }
 
         [HttpPost("token")]
@@ -114,7 +122,7 @@ namespace FUNewSystem.BE.Controllers
 
             return payload.IsNewAccount
                 ? Redirect($"{returnUrl}?register=true&email={email}&name={name}&externalId={externalId}&provider={provider}")
-                : Redirect($"{returnUrl}?token={payload.AccessToken}");
+                : Redirect($"{returnUrl}?token={payload.AccessToken}&is2FAEnabled={payload.Is2FAEnabled.ToString().ToLower()}");
         }
 
         [HttpPost("complete-register")]
@@ -127,6 +135,85 @@ namespace FUNewSystem.BE.Controllers
                 refreshToken = payload.AccessToken.RefreshToken,
                 authenticated = payload.Authenticated
             });
+        }
+
+        [HttpGet("2fa/generate-secret")]
+        public async Task<ActionResult> GenerateSecret()
+        {
+            var systemAccount = await _httpContextService.GetSystemAccountAndThrow();
+            if (string.IsNullOrEmpty(systemAccount.AccountId))
+                return Unauthorized();
+
+            try
+            {
+                var result = await _twoFactorAuthService.GenerateSecretAsync(systemAccount.AccountId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Lỗi khi tạo mã 2FA.");
+            }
+        }
+
+
+        [HttpPost("2fa/verify-code")]
+        public async Task<IActionResult> VerifyCode([FromBody] TwoFaVerifyDto dto)
+        {
+            var systemAccount = await _httpContextService.GetSystemAccountAndThrow();
+            if (string.IsNullOrEmpty(systemAccount.AccountId))
+                return Unauthorized();
+
+            try
+            {
+                var isValid = await _twoFactorAuthService.VerifyCodeAsync(systemAccount.AccountId, dto.Code);
+                if (!isValid)
+                    return BadRequest(new { message = "Mã xác thực không đúng." });
+
+                return Ok(new { message = "Xác thực thành công. 2FA đã được bật." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Lỗi xác minh mã 2FA.");
+            }
+        }
+
+        [HttpGet("2fa/is-enabled")]
+        public async Task<IActionResult> Is2FAEnabled()
+        {
+            var systemAccount = await _httpContextService.GetSystemAccountAndThrow();
+            if (string.IsNullOrEmpty(systemAccount.AccountId))
+                return Unauthorized();
+
+            bool isEnabled = await _twoFactorAuthService.Check2FAEnabledAsync(systemAccount.AccountId);
+            return Ok(new { is2FAEnabled = isEnabled });
+        }
+
+
+        [HttpPost("2fa/verify-token-after-login")]
+        [Authorize]
+        public async Task<IActionResult> VerifyTokenAfterLogin([FromBody] TwoFaCodeDto dto)
+        {
+            var systemAccount = await _httpContextService.GetSystemAccountAndThrow();
+            if (string.IsNullOrEmpty(systemAccount.AccountId))
+                return Unauthorized();
+
+            try
+            {
+                var isValid = await _twoFactorAuthService.VerifyCodeAfterLoginAsync(systemAccount.AccountId, dto.Code);
+
+                if (!isValid)
+                    return BadRequest(new { message = "Mã xác thực không đúng." });
+
+                return Ok(new { message = "Xác thực thành công." });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống khi xác minh mã 2FA." });
+            }
         }
 
     }

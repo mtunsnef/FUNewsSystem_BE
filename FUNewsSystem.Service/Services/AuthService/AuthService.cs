@@ -225,7 +225,8 @@ namespace FUNewsSystem.Service.Services.AuthService
             return new ExternalLoginPayloadDto
             {
                 IsNewAccount = false,
-                AccessToken = token
+                AccessToken = token,
+                Is2FAEnabled = account.Is2FAEnabled
             };
         }
 
