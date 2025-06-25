@@ -1,4 +1,5 @@
 ﻿using FUNewsSystem.Domain.Models;
+using FUNewsSystem.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Threading.Tasks;
