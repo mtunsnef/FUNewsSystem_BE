@@ -33,7 +33,7 @@ namespace FUNewSystem.BE.Controllers
         private readonly ITwoFactorAuthService _twoFactorAuthService;
         private readonly IHttpContextService _httpContextService;
 
-        public AuthController(IHttpContextService httpContextService,IAuthService authService, IConfigService configService, ITwoFactorAuthService twoFactorAuthService)
+        public AuthController(IHttpContextService httpContextService, IAuthService authService, IConfigService configService, ITwoFactorAuthService twoFactorAuthService)
         {
             _authService = authService;
             _configService = configService;

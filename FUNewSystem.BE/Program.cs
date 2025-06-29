@@ -1,4 +1,4 @@
-﻿
+
 using FluentValidation.AspNetCore;
 using FUNewsSystem.Domain.Consts;
 using FUNewsSystem.Domain.Models;
@@ -121,6 +121,11 @@ namespace FUNewSystem.BE
                 options.UseSqlServer(builder.Configuration.GetConnectionString("FUNewsConnection"));
             });
 
+            //Add Config Azure Redis
+            builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+            ConnectionMultiplexer.Connect(
+                builder.Configuration.GetConnectionString("CacheConnection")!));
+
             var secret = builder.Configuration["Jwt:SecretKey"]!.Trim();
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             //Add Authenticaion and Authorization
@@ -213,14 +218,6 @@ namespace FUNewSystem.BE
             //Config automapper
             builder.Services.AddAutoMapper(typeof(CategoryProfile));
             builder.Services.AddAutoMapper(typeof(Program));
-
-            //Add config azure redis
-            builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(
-                builder.Configuration.GetConnectionString("Redis")!));
-            // appsettings.json
-            // "ConnectionStrings": { "Redis": "FUNewSystemBEcache.redis.cache.windows.net:6380,password=...,ssl=True,abortConnect=False" }
-
 
             var app = builder.Build();
 

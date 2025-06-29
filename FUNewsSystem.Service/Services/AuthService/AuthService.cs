@@ -230,7 +230,6 @@ namespace FUNewsSystem.Service.Services.AuthService
             };
         }
 
-
         public async Task<LoginPayloadDto> CompleteRegisterAsync(CompleteExternalRegisterDto dto)
         {
             var existingAccount = await _systemAccountRepository.GetAccountByEmail(dto.Email);
@@ -263,6 +262,11 @@ namespace FUNewsSystem.Service.Services.AuthService
                 AccessToken = tokenPayload,
                 Authenticated = true
             };
+        }
+
+        public Task<RegisterPayloadDto> RegisterAccountAsync(RegisterRequestDto dto)
+        {
+            throw new NotImplementedException();
         }
     }
 }

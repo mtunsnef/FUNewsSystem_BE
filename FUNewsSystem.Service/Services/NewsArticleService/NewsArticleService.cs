@@ -134,7 +134,7 @@ namespace FUNewsSystem.Service.Services.NewsArticleService
                 await _newsArticleRepository.CommitTransactionAsync();
 
 
-                return ApiResponseDto<string>.SuccessResponse("✅ Đăng bài thành công.");
+                return ApiResponseDto<string>.SuccessResponse("Đăng bài thành công.");
 
                 }
                 catch (Exception ex)
