@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FUNewsSystem.Infrastructure.DataAccess.Migrations
 {
     [DbContext(typeof(FunewsSystemApiDbContext))]
-    [Migration("20250624160720_AddTwoFactorFieldsToSystemAccount")]
-    partial class AddTwoFactorFieldsToSystemAccount
+    [Migration("20250627101709_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
