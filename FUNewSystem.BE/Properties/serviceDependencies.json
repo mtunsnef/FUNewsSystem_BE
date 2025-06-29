@@ -5,11 +5,13 @@
     },
     "mssql1": {
       "type": "mssql",
-      "connectionId": "ConnectionStrings:FUNewsConnection"
+      "connectionId": "ConnectionStrings:FUNewsConnection",
+      "dynamicId": null
     },
     "redis1": {
       "type": "redis",
-      "connectionId": "CacheConnection"
+      "connectionId": "CacheConnection",
+      "dynamicId": null
     }
   }
 }
