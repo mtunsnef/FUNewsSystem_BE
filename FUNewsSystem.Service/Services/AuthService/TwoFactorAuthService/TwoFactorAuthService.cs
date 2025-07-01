@@ -1,5 +1,7 @@
 ﻿using FUNewsSystem.Infrastructure.Repositories.SystemAccountRepo;
 using FUNewsSystem.Service.DTOs.AuthDto.TwoFaDto;
+using FUNewsSystem.Service.Services.AuthService.AzureRedisTokenStoreService;
+using FUNewsSystem.Service.Services.ConfigService;
 using FUNewsSystem.Service.Services.SystemAccountService;
 using OtpNet;
 using System;
@@ -15,10 +17,17 @@ namespace FUNewsSystem.Service.Services.AuthService.TwoFactorAuthService
     public class TwoFactorAuthService : ITwoFactorAuthService
     {
         private readonly ISystemAccountRepository _systemAccountRepository;
+        private readonly IAuthService _authService;
+        private readonly IRefreshTokenStoreSerivce _tokenStoreService;
+        private readonly IConfigService _configService;
 
-        public TwoFactorAuthService(ISystemAccountRepository systemAccountRepository)
+
+        public TwoFactorAuthService(IConfigService configService, IRefreshTokenStoreSerivce tokenStoreService, ISystemAccountRepository systemAccountRepository, IAuthService authService)
         {
             _systemAccountRepository = systemAccountRepository;
+            _authService = authService;
+            _tokenStoreService = tokenStoreService;
+            _configService = configService;
         }
         public async Task<TwoFaInitDto?> GenerateSecretAsync(string userId)
         {
@@ -79,8 +88,18 @@ namespace FUNewsSystem.Service.Services.AuthService.TwoFactorAuthService
                 throw new UnauthorizedAccessException("No 2FA secret found");
 
             var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecretKey));
-            return totp.VerifyTotp(code, out _);
+            var isValid = totp.VerifyTotp(code, out _);
+
+            if (!isValid) return false;
+
+            var tokenPayload = _authService.GenerateTokenPayload(user);
+            var refreshKey = $"{user.AccountId}";
+            var refreshTTL = TimeSpan.FromSeconds(_configService.GetInt("Jwt:Lifetime:RefreshToken"));
+            await _tokenStoreService.SetAsync(refreshKey, tokenPayload.RefreshToken, refreshTTL);
+
+            return true;
         }
+
 
     }
 }

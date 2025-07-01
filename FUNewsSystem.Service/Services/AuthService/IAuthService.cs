@@ -20,5 +20,6 @@ namespace FUNewsSystem.Service.Services.AuthService
         Task<ExternalLoginPayloadDto> HandleExternalLoginAsync(string email, string? name, string externalId);
         Task<LoginPayloadDto> CompleteRegisterAsync(CompleteExternalRegisterDto dto);
         Task<RegisterPayloadDto> RegisterAccountAsync(RegisterRequestDto request);
+        TokenPayloadDto GenerateTokenPayload(SystemAccount systemAccount);
     }
 }
