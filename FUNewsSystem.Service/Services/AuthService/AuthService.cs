@@ -53,9 +53,12 @@ namespace FUNewsSystem.Service.Services.AuthService
 
             var tokenPayload = GenerateTokenPayload(account);
 
-            var refreshKey = $"{account.AccountId}";
-            var refreshTTL = TimeSpan.FromSeconds(_configService.GetInt("Jwt:Lifetime:RefreshToken"));
-            await _tokenStoreService.SetAsync(refreshKey, tokenPayload.RefreshToken, refreshTTL);
+            if (!account.Is2FAEnabled)
+            {
+                var refreshKey = $"{account.AccountId}";
+                var refreshTTL = TimeSpan.FromSeconds(_configService.GetInt("Jwt:Lifetime:RefreshToken"));
+                await _tokenStoreService.SetAsync(refreshKey, tokenPayload.RefreshToken, refreshTTL);
+            }
 
             return new LoginPayloadDto
             {
@@ -79,6 +82,16 @@ namespace FUNewsSystem.Service.Services.AuthService
             var exp = jwt.ValidTo;
 
             await _blacklistTokenService.BlacklistAsync(jti, exp);
+
+            var storedRefreshToken = await _tokenStoreService.GetAsync(userId);
+            if (!string.IsNullOrEmpty(storedRefreshToken))
+            {
+                var refreshJti = new JwtSecurityTokenHandler().ReadJwtToken(storedRefreshToken).Id;
+                var refreshExp = GetTokenExpiry(storedRefreshToken);
+
+                await _blacklistTokenService.BlacklistAsync(refreshJti, refreshExp);
+            }
+
             await _tokenStoreService.DeleteAsync(userId);
         }
 
@@ -94,7 +107,7 @@ namespace FUNewsSystem.Service.Services.AuthService
             return jwt.ValidTo;
         }
 
-        private TokenPayloadDto GenerateTokenPayload(SystemAccount systemAccount)
+        public TokenPayloadDto GenerateTokenPayload(SystemAccount systemAccount)
         {
             var accessToken = GenerateToken(systemAccount, AuthToken.AccessToken);
             var refreshToken = GenerateToken(systemAccount, AuthToken.RefreshToken);
@@ -194,7 +207,7 @@ namespace FUNewsSystem.Service.Services.AuthService
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                     new Claim(JwtRegisteredClaimNames.Sub, _configService.GetString("Jwt:Subject")),
                     new Claim("AccountId", acc.AccountId.ToString()),
-                    new Claim("Email",     acc.AccountEmail ?? ""),
+                    new Claim("Email", acc.AccountEmail ?? ""),
                     new Claim(ClaimTypes.Role, acc.GetRoleConst() ?? ""),
                     new Claim("token_type", type == AuthToken.AccessToken ? "access" : "refresh")
                 }),
@@ -220,12 +233,19 @@ namespace FUNewsSystem.Service.Services.AuthService
                 };
             }
 
-            var token = GenerateToken(account, AuthToken.AccessToken);
+            var tokenPayload = GenerateTokenPayload(account);
+
+            if (!account.Is2FAEnabled)
+            {
+                var refreshKey = $"{account.AccountId}";
+                var refreshTTL = TimeSpan.FromSeconds(_configService.GetInt("Jwt:Lifetime:RefreshToken"));
+                await _tokenStoreService.SetAsync(refreshKey, tokenPayload.RefreshToken, refreshTTL);
+            }
 
             return new ExternalLoginPayloadDto
             {
                 IsNewAccount = false,
-                AccessToken = token,
+                AccessToken = tokenPayload.AccessToken,
                 Is2FAEnabled = account.Is2FAEnabled
             };
         }
