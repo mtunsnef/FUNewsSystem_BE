@@ -1,11 +1,14 @@
-
+﻿
 using FluentValidation.AspNetCore;
 using FUNewsSystem.Domain.Consts;
+using FUNewsSystem.Domain.Extensions.SystemAccounts;
 using FUNewsSystem.Domain.Models;
 using FUNewsSystem.Infrastructure.DataAccess;
+using FUNewsSystem.Infrastructure.Messaging;
 using FUNewsSystem.Infrastructure.Repositories.CategoryRepo;
 using FUNewsSystem.Infrastructure.Repositories.InvalidatedTokenRepo;
 using FUNewsSystem.Infrastructure.Repositories.NewsArticleRepo;
+using FUNewsSystem.Infrastructure.Repositories.NotificationRepo;
 using FUNewsSystem.Infrastructure.Repositories.SystemAccountRepo;
 using FUNewsSystem.Infrastructure.Repositories.TagRepo;
 using FUNewsSystem.Service.AutoMapper;
@@ -17,6 +20,7 @@ using FUNewsSystem.Service.Services.CategoryService;
 using FUNewsSystem.Service.Services.ConfigService;
 using FUNewsSystem.Service.Services.HttpContextService;
 using FUNewsSystem.Service.Services.NewsArticleService;
+using FUNewsSystem.Service.Services.NotificationService;
 using FUNewsSystem.Service.Services.SystemAccountService;
 using FUNewsSystem.Service.Services.TagService;
 using FUNewSystem.BE.Middlewares;
@@ -24,6 +28,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OData;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Options;
@@ -31,6 +36,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 
 namespace FUNewSystem.BE
@@ -151,8 +157,20 @@ namespace FUNewSystem.BE
                     };
                     options.Events = new JwtBearerEvents
                     {
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationpublisher"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
+                        },
                         OnTokenValidated = async context =>
                         {
+                            var accountId = context.Principal?.FindFirst("AccountId")?.Value;
+                            Console.WriteLine($"[OnTokenValidated] AccountId: {accountId}");
                             var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
                             var blacklistService = context.HttpContext.RequestServices.GetRequiredService<IBlacklistTokenService>();
                             if (!string.IsNullOrEmpty(jti))
@@ -165,6 +183,7 @@ namespace FUNewSystem.BE
                             }
                         }
                     };
+
                 })
                 .AddGoogle(AuthSchemes.Google, options =>
                 {
@@ -202,6 +221,7 @@ namespace FUNewSystem.BE
             builder.Services.AddScoped<INewsArticleRepository, NewsArticleRepository>();
             builder.Services.AddScoped<ITagRepository, TagRepository>();
             builder.Services.AddScoped<ISystemAccountRepository, SystemAccountRepository>();
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
             //Service
             builder.Services.AddScoped<ICategoryService, CategoryService>();
@@ -214,10 +234,18 @@ namespace FUNewSystem.BE
             builder.Services.AddScoped<IBlacklistTokenService, BlacklistTokenService>();
             builder.Services.AddScoped<IRefreshTokenStoreSerivce, AzureRedisRefreshTokenStoreService>();
             builder.Services.AddScoped<ITwoFactorAuthService, TwoFactorAuthService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
 
             //Config automapper
             builder.Services.AddAutoMapper(typeof(CategoryProfile));
             builder.Services.AddAutoMapper(typeof(Program));
+            builder.Services.AddAutoMapper(typeof(NotificationProfile));
+
+            //UserId
+            builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+
+            // Thêm SignalR
+            builder.Services.AddSignalR();
 
             var app = builder.Build();
 
@@ -238,6 +266,7 @@ namespace FUNewSystem.BE
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapHub<NotificationPublisher>("/notificationpublisher");
 
             app.Run();
         }
