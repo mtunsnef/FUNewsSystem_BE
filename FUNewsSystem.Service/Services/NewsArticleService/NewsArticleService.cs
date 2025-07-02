@@ -2,14 +2,19 @@
 using FUNewsSystem.Domain.Exceptions.Http;
 using FUNewsSystem.Domain.Models;
 using FUNewsSystem.Infrastructure.Repositories.NewsArticleRepo;
+using FUNewsSystem.Infrastructure.Repositories.NotificationRepo;
 using FUNewsSystem.Infrastructure.Repositories.TagRepo;
 using FUNewsSystem.Service.DTOs.NewsArticleDto;
 using FUNewsSystem.Service.DTOs.ResponseDto;
+using FUNewsSystem.Service.Services.HttpContextService;
+using FUNewsSystem.Service.Services.NotificationService;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace FUNewsSystem.Service.Services.NewsArticleService
 {
@@ -18,11 +23,14 @@ namespace FUNewsSystem.Service.Services.NewsArticleService
         private readonly INewsArticleRepository _newsArticleRepository;
         private readonly IMapper _mapper;
         private readonly ITagRepository _tagRepository;
-        public NewsArticleService(INewsArticleRepository newsArticleRepository, IMapper mapper, ITagRepository tagRepository)
+        private readonly INotificationService _notificationService;
+
+        public NewsArticleService(INotificationService notificationService, INewsArticleRepository newsArticleRepository, IMapper mapper, ITagRepository tagRepository)
         {
             _newsArticleRepository = newsArticleRepository;
             _mapper = mapper;
             _tagRepository = tagRepository;
+            _notificationService = notificationService;
         }
 
         public Task<List<NewsArticle>> GetAllAsync()
@@ -154,6 +162,29 @@ namespace FUNewsSystem.Service.Services.NewsArticleService
                 Status = x.NewsStatus,
                 CreatedAt = x.CreatedDate?.ToString("dd/MM/yyyy") ?? "",
             }).ToList();
+        }
+
+        public async Task<ApiResponseDto<string>> UpdateStatusNewsArticle(string id)
+        {
+            var article = await _newsArticleRepository.GetByIdAsync(id);
+            if (article == null)
+                return ApiResponseDto<string>.FailResponse(StatusCodes.Status404NotFound);
+
+            if (article.NewsStatus == "A")
+                throw new ConflictException("Bài đăng đã được duyệt");
+
+            article.NewsStatus = "A";
+            article.ModifiedDate = DateTime.UtcNow;
+            await _newsArticleRepository.UpdateAsync(article);
+
+            var message = $"Bài viết \"{article.NewsTitle}\" của bạn đã được duyệt.";
+            var link = $"/chi-tiet/{article.NewsArticleId}";
+            var image = article.ImageTitle;
+            var timestamp = DateTime.UtcNow;
+
+            await _notificationService.NotifyUserAsync(article.CreatedById!, message, link, image, timestamp);
+
+            return ApiResponseDto<string>.SuccessResponse("Cập nhật bài đăng thành công!");
         }
     }
 }
