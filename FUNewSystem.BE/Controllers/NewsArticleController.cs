@@ -116,5 +116,13 @@ namespace FUNewSystem.BE.Controllers
             var result = await _newsArticleService.GetArticlesByStatusAsync(statusChar, user.AccountId);
             return Ok(result);
         }
+
+        [HttpGet("update-status/{id}")]
+        [Authorize(Roles = CustomRoles.Staff)]
+        public async Task<IActionResult> UpdateStatus(string id)
+        {
+            var result = await _newsArticleService.UpdateStatusNewsArticle(id);
+            return Ok(result);
+        }
     }
 }
