@@ -23,7 +23,7 @@ namespace FUNewsSystem.Infrastructure.Repositories.NotificationRepo
         {
             return await _dbSet
             .Where(n => n.UserId == userId)
-            .OrderByDescending(n => n.CreatedAt)
+            .OrderBy(n => n.CreatedAt)
             .Take(10).ToListAsync();
         }
 
