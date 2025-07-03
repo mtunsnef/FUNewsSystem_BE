@@ -1,5 +1,6 @@
 ﻿
 using FluentValidation.AspNetCore;
+using FUNewsSystem.Domain.Configs;
 using FUNewsSystem.Domain.Consts;
 using FUNewsSystem.Domain.Extensions.SystemAccounts;
 using FUNewsSystem.Domain.Models;
@@ -11,7 +12,9 @@ using FUNewsSystem.Infrastructure.Repositories.NewsArticleRepo;
 using FUNewsSystem.Infrastructure.Repositories.NotificationRepo;
 using FUNewsSystem.Infrastructure.Repositories.SystemAccountRepo;
 using FUNewsSystem.Infrastructure.Repositories.TagRepo;
+using FUNewsSystem.Infrastructure.Services;
 using FUNewsSystem.Service.AutoMapper;
+using FUNewsSystem.Service.Jobs;
 using FUNewsSystem.Service.Services.AuthService;
 using FUNewsSystem.Service.Services.AuthService.AzureRedisTokenStoreService;
 using FUNewsSystem.Service.Services.AuthService.BlacklistTokenService;
@@ -24,9 +27,12 @@ using FUNewsSystem.Service.Services.NotificationService;
 using FUNewsSystem.Service.Services.SystemAccountService;
 using FUNewsSystem.Service.Services.TagService;
 using FUNewSystem.BE.Middlewares;
+using Hangfire;
+using Hangfire.MemoryStorage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.OData;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -113,7 +119,7 @@ namespace FUNewSystem.BE
                     policy.WithOrigins(
                                 "https://localhost:44352",
                                 "https://localhost:7157",
-                                "https://funews.azurewebsites.net"
+                                "https://funewssystem.azurewebsites.net"
                             )
                           .AllowAnyHeader()
                           .AllowAnyMethod()
@@ -244,8 +250,31 @@ namespace FUNewSystem.BE
             //UserId
             builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
+            //Config
+            builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+
             // Thêm SignalR
             builder.Services.AddSignalR();
+
+            // MailService
+            builder.Services.AddScoped<IMailService, MailService>();
+
+            // Hangfire Job
+            builder.Services.AddHangfire(config =>
+            {
+                //var cs = builder.Configuration.GetConnectionString("FUNewsConnection");
+                //if (string.IsNullOrEmpty(cs))
+                //    throw new Exception("Missing FUNewsConnection for Hangfire.");
+
+                //config.UseSqlServerStorage(cs);
+                config.UseMemoryStorage();
+            });
+
+            builder.Services.AddHangfireServer();
+
+            builder.Services.AddScoped<IPostJob, PostJob>();
+           
+
 
             var app = builder.Build();
 
@@ -258,13 +287,20 @@ namespace FUNewSystem.BE
 
             app.UseGlobalExceptionHandler();
             app.UseHttpsRedirection();
-            app.UseForwardedHeaders();
+            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedProto
+            });
 
             app.UseCors("AllowFrontend");
 
             app.UseAuthentication();
             app.UseAuthorization();
-
+            // 🔥 QUAN TRỌNG: Đặt trước MapControllers()
+            app.UseHangfireDashboard("/hangfire", new DashboardOptions
+            {
+                Authorization = new[] { new HangfireAuthorizationFilter() }
+            });
             app.MapControllers();
             app.MapHub<NotificationPublisher>("/notificationpublisher");
 
