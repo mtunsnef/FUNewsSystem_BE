@@ -2,8 +2,10 @@
 using FUNewsSystem.Domain.Models;
 using FUNewsSystem.Service.DTOs.NewsArticleDto;
 using FUNewsSystem.Service.DTOs.ResponseDto;
+using FUNewsSystem.Service.Jobs;
 using FUNewsSystem.Service.Services.HttpContextService;
 using FUNewsSystem.Service.Services.NewsArticleService;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -88,9 +90,26 @@ namespace FUNewSystem.BE.Controllers
         public async Task<IActionResult> PostNewsArticle([FromForm] PostNewsArticleforUserDto dto)
         {
             var systemAccount = await _httpContextService.GetSystemAccountAndThrow();
+
+            if (dto.PostScheduleType == "schedule" && !string.IsNullOrEmpty(dto.PostScheduleTime))
+            {
+                if (!DateTime.TryParse(dto.PostScheduleTime, out var scheduleTime))
+                {
+                    return BadRequest(ApiResponseDto<string>.FailResponse());
+                }
+
+                BackgroundJob.Schedule<IPostJob>(
+                    job => job.ExecuteScheduledPostAsync(systemAccount, dto),
+                    scheduleTime
+                );
+
+                return Ok(ApiResponseDto<string>.SuccessResponse("Đã lên lịch đăng bài."));
+            }
+
             var result = await _newsArticleService.PostNewsArticleAsync(systemAccount, dto);
             return Ok(result);
         }
+
 
         [HttpGet("check-access")]
         [Authorize(Roles = CustomRoles.Lecturer)]
