@@ -6,8 +6,10 @@ using FUNewsSystem.Infrastructure.Repositories.NotificationRepo;
 using FUNewsSystem.Infrastructure.Repositories.TagRepo;
 using FUNewsSystem.Service.DTOs.NewsArticleDto;
 using FUNewsSystem.Service.DTOs.ResponseDto;
+using FUNewsSystem.Service.Jobs;
 using FUNewsSystem.Service.Services.HttpContextService;
 using FUNewsSystem.Service.Services.NotificationService;
+using Hangfire;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -81,76 +83,81 @@ namespace FUNewsSystem.Service.Services.NewsArticleService
             return ApiResponseDto<string>.SuccessResponse("NewsArticle deleted successfully.");
         }
 
-            public async Task<ApiResponseDto<string>> PostNewsArticleAsync(SystemAccount user, PostNewsArticleforUserDto dto)
+        public async Task<ApiResponseDto<string>> PostNewsArticleAsync(SystemAccount user, PostNewsArticleforUserDto dto)
+        {
+            try
             {
-                try
+                await _newsArticleRepository.BeginTransactionAsync();
+
+                string imagePath = string.Empty;
+
+                if (dto.ImageFile != null && dto.ImageFile.Length > 0)
                 {
-                    await _newsArticleRepository.BeginTransactionAsync();
+                    var uploadsFolder = Path.Combine("wwwroot", "uploads", "news");
+                    Directory.CreateDirectory(uploadsFolder);
 
-                    string imagePath = string.Empty;
+                    var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(dto.ImageFile.FileName);
+                    var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
-                    if (dto.ImageFile != null && dto.ImageFile.Length > 0)
+                    using (var fileStream = new FileStream(filePath, FileMode.Create))
                     {
-                        var uploadsFolder = Path.Combine("wwwroot", "uploads", "news");
-                        Directory.CreateDirectory(uploadsFolder);
-
-                        var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(dto.ImageFile.FileName);
-                        var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                        using (var fileStream = new FileStream(filePath, FileMode.Create))
-                        {
-                            await dto.ImageFile.CopyToAsync(fileStream);
-                        }
-
-                        imagePath = "/uploads/news/" + uniqueFileName;
-                    }
-                    else if (!string.IsNullOrEmpty(dto.ImageUrl))
-                    {
-                        imagePath = dto.ImageUrl.Trim();
+                        await dto.ImageFile.CopyToAsync(fileStream);
                     }
 
-                    var article = new NewsArticle
-                    {
-                        NewsArticleId = Guid.NewGuid().ToString(),
-                        NewsTitle = dto.NewsTitle,
-                        Headline = dto.Headline,
-                        NewsContent = dto.NewsContent,
-                        NewsSource = dto.NewsSource,
-                        ImageTitle = imagePath,
-                        CategoryId = (short)(dto.CategoryId),
-                        CreatedById = user.AccountId,
-                        NewsStatus = dto.NewsStatus,
-                        CreatedDate = DateTime.Now
-                    };
-                var existingTags = await _tagRepository.GetExistingTagsByNamesAsync(dto.Tags);
-
-                var newTags = dto.Tags
-                    .Where(name => !existingTags.Any(e => e.TagName.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                    .Select(name => new Tag { TagId = Guid.NewGuid().ToString(), TagName = name })
-                    .ToList();
-
-                if (newTags.Any())
+                    imagePath = "/uploads/news/" + uniqueFileName;
+                }
+                else if (!string.IsNullOrEmpty(dto.ImageUrl))
                 {
-                    await _tagRepository.AddTagsAsync(newTags);
+                    imagePath = dto.ImageUrl.Trim();
                 }
 
-                _tagRepository.AttachTagsAsUnchanged(existingTags);
-
-                article.Tags = existingTags.Concat(newTags).ToList();
-
-                await _newsArticleRepository.AddAsync(article);
-                await _newsArticleRepository.CommitTransactionAsync();
-
-
-                return ApiResponseDto<string>.SuccessResponse("Đăng bài thành công.");
-
-                }
-                catch (Exception ex)
+                var article = new NewsArticle
                 {
-                    await _newsArticleRepository.RollbackTransactionAsync();
-                    return ApiResponseDto<string>.FailResponse(StatusCodes.Status400BadRequest);
-                }
+                    NewsArticleId = Guid.NewGuid().ToString(),
+                    NewsTitle = dto.NewsTitle,
+                    Headline = dto.Headline,
+                    NewsContent = dto.NewsContent,
+                    NewsSource = dto.NewsSource,
+                    ImageTitle = imagePath,
+                    CategoryId = (short)(dto.CategoryId),
+                    CreatedById = user.AccountId,
+                    NewsStatus = dto.NewsStatus,
+                    CreatedDate = DateTime.Now
+                };
+            var existingTags = await _tagRepository.GetExistingTagsByNamesAsync(dto.Tags);
+
+            var newTags = dto.Tags
+                .Where(name => !existingTags.Any(e => e.TagName.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                .Select(name => new Tag { TagId = Guid.NewGuid().ToString(), TagName = name })
+                .ToList();
+
+            if (newTags.Any())
+            {
+                await _tagRepository.AddTagsAsync(newTags);
             }
+
+            _tagRepository.AttachTagsAsUnchanged(existingTags);
+
+            article.Tags = existingTags.Concat(newTags).ToList();
+
+            await _newsArticleRepository.AddAsync(article);
+            await _newsArticleRepository.CommitTransactionAsync();
+
+
+            return ApiResponseDto<string>.SuccessResponse("Đăng bài thành công.");
+
+            }
+            catch (Exception ex)
+            {
+                await _newsArticleRepository.RollbackTransactionAsync();
+                return ApiResponseDto<string>.FailResponse(StatusCodes.Status400BadRequest);
+            }
+        }
+
+        public async Task ExecuteScheduledPostAsync(SystemAccount user, PostNewsArticleforUserDto dto)
+        {
+            await PostNewsArticleAsync(user, dto);
+        }
         public async Task<List<PostManageDto>> GetArticlesByStatusAsync(string status, string userId)
         {
             var articles = await _newsArticleRepository.GetByStatusAsync(status, userId);

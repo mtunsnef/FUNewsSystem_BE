@@ -19,6 +19,9 @@ namespace FUNewsSystem.Service.DTOs.NewsArticleDto
         public IFormFile? ImageFile { get; set; } // dùng cho file upload
         public string? ImageUrl { get; set; } // nếu chọn từ URL
         public List<string> Tags { get; set; } = new List<string>();
-        public string NewsStatus { get; set; } 
+        public string NewsStatus { get; set; }
+        public string? PostScheduleTime { get; set; }
+        public string? PostScheduleType { get; set; } // "now" hoặc "schedule"
+
     }
 }

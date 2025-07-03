@@ -20,5 +20,6 @@ namespace FUNewsSystem.Service.Services.NewsArticleService
         Task<ApiResponseDto<string>> PostNewsArticleAsync(SystemAccount user, PostNewsArticleforUserDto dto);
         Task<List<PostManageDto>> GetArticlesByStatusAsync(string status, string userId);
         Task<ApiResponseDto<string>> UpdateStatusNewsArticle(string id);
+        Task ExecuteScheduledPostAsync(SystemAccount user, PostNewsArticleforUserDto dto);
     }
 }
